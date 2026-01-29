@@ -177,6 +177,36 @@ function App() {
     }
   }
 
+  const applyCapture = (capturedPiece) => {
+    if (!capturedPiece || capturedPiece.player === currentPlayer) return
+
+    setCapturedPieces((prev) => ({
+      ...prev,
+      [capturedPiece.player]: [
+        ...prev[capturedPiece.player],
+        capturedPiece.type,
+      ],
+    }))
+    setRemainingPieces((prev) => ({
+      ...prev,
+      [capturedPiece.player]: [
+        ...prev[capturedPiece.player],
+        capturedPiece.type,
+      ],
+    }))
+    setPiecesPlaced((prev) => {
+      const nextPlaced = [...prev[capturedPiece.player]]
+      const capturedIndex = nextPlaced.indexOf(capturedPiece.type)
+      if (capturedIndex !== -1) {
+        nextPlaced.splice(capturedIndex, 1)
+      }
+      return {
+        ...prev,
+        [capturedPiece.player]: nextPlaced,
+      }
+    })
+  }
+
   const handleSelectPiece = (pieceType) => {
     if (winner) return
     if (phase === 'movement' && remainingPieces[currentPlayer].length === 0) {
@@ -264,33 +294,7 @@ function App() {
         nextBoard[row][col] = movingPiece
         setBoard(nextBoard)
 
-        if (capturedPiece && capturedPiece.player !== currentPlayer) {
-          setCapturedPieces((prev) => ({
-            ...prev,
-            [capturedPiece.player]: [
-              ...prev[capturedPiece.player],
-              capturedPiece.type,
-            ],
-          }))
-          setRemainingPieces((prev) => ({
-            ...prev,
-            [capturedPiece.player]: [
-              ...prev[capturedPiece.player],
-              capturedPiece.type,
-            ],
-          }))
-          setPiecesPlaced((prev) => {
-            const nextPlaced = [...prev[capturedPiece.player]]
-            const capturedIndex = nextPlaced.indexOf(capturedPiece.type)
-            if (capturedIndex !== -1) {
-              nextPlaced.splice(capturedIndex, 1)
-            }
-            return {
-              ...prev,
-              [capturedPiece.player]: nextPlaced,
-            }
-          })
-        }
+        applyCapture(capturedPiece)
 
         setSelectedMovePiece(null)
         setValidMoves([])
