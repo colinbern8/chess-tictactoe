@@ -15,14 +15,18 @@ const createEmptyBoard = () =>
 const formatName = (value) =>
   value ? value.charAt(0).toUpperCase() + value.slice(1) : ''
 
+const createInitialPiecesState = () => ({
+  white: [...INITIAL_PIECES],
+  black: [...INITIAL_PIECES],
+})
+
 function App() {
   const [board, setBoard] = useState(createEmptyBoard)
   const [currentPlayer, setCurrentPlayer] = useState('white')
   const [phase, setPhase] = useState('placement')
-  const [remainingPieces, setRemainingPieces] = useState({
-    white: [...INITIAL_PIECES],
-    black: [...INITIAL_PIECES],
-  })
+  const [remainingPieces, setRemainingPieces] = useState(
+    createInitialPiecesState
+  )
   const [piecesPlaced, setPiecesPlaced] = useState({
     white: [],
     black: [],
@@ -220,6 +224,19 @@ function App() {
     })
   }
 
+  const resetGame = () => {
+    setBoard(createEmptyBoard())
+    setCurrentPlayer('white')
+    setPhase('placement')
+    setRemainingPieces(createInitialPiecesState())
+    setPiecesPlaced({ white: [], black: [] })
+    setCapturedPieces({ white: [], black: [] })
+    setSelectedPiece(null)
+    setSelectedMovePiece(null)
+    setValidMoves([])
+    setWinner(null)
+  }
+
   const handleSelectPiece = (pieceType) => {
     if (winner) return
     if (phase === 'movement' && remainingPieces[currentPlayer].length === 0) {
@@ -349,11 +366,16 @@ function App() {
             Place your pieces on the grid and aim for four in a row.
           </p>
         </div>
-        <div className="turn-banner">
-          <span className="turn-banner__label">Current turn</span>
-          <span className={`player-pill player-pill--${currentPlayer}`}>
-            {formatName(currentPlayer)}
-          </span>
+        <div className="header-actions">
+          <div className="turn-banner">
+            <span className="turn-banner__label">Current turn</span>
+            <span className={`player-pill player-pill--${currentPlayer}`}>
+              {formatName(currentPlayer)}
+            </span>
+          </div>
+          <button type="button" className="reset-button" onClick={resetGame}>
+            New Game
+          </button>
         </div>
       </header>
       <main className="game-layout">
