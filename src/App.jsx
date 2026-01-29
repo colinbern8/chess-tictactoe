@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Board from './Board'
 import GameInfo from './GameInfo'
+import { checkWinner } from './game/winCondition'
 import './App.css'
 
 const BOARD_SIZE = 4
@@ -33,7 +34,7 @@ function App() {
   const [selectedPiece, setSelectedPiece] = useState(null)
   const [selectedMovePiece, setSelectedMovePiece] = useState(null)
   const [validMoves, setValidMoves] = useState([])
-  const [winner] = useState(null)
+  const [winner, setWinner] = useState(null)
 
   useEffect(() => {
     const available = remainingPieces[currentPlayer]
@@ -177,6 +178,18 @@ function App() {
     }
   }
 
+  const finalizeTurn = (nextBoard) => {
+    const nextWinner = checkWinner(nextBoard)
+    setBoard(nextBoard)
+    setSelectedMovePiece(null)
+    setValidMoves([])
+    if (nextWinner) {
+      setWinner(nextWinner)
+      return
+    }
+    setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
+  }
+
   const applyCapture = (capturedPiece) => {
     if (!capturedPiece || capturedPiece.player === currentPlayer) return
 
@@ -231,7 +244,6 @@ function App() {
       const nextBoard = board.map((boardRow) => boardRow.slice())
       nextBoard[row][col] = createPiece(selectedPiece, currentPlayer, row)
 
-      setBoard(nextBoard)
       setRemainingPieces((prev) => {
         const nextPlayerPieces = [...prev[currentPlayer]]
         const pieceIndex = nextPlayerPieces.indexOf(selectedPiece)
@@ -258,9 +270,7 @@ function App() {
           [currentPlayer]: nextCaptured,
         }
       })
-      setSelectedMovePiece(null)
-      setValidMoves([])
-      setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
+      finalizeTurn(nextBoard)
     }
 
     if (phase === 'placement') {
@@ -292,13 +302,9 @@ function App() {
         const nextBoard = board.map((boardRow) => boardRow.slice())
         nextBoard[selectedMovePiece.row][selectedMovePiece.col] = null
         nextBoard[row][col] = movingPiece
-        setBoard(nextBoard)
-
         applyCapture(capturedPiece)
 
-        setSelectedMovePiece(null)
-        setValidMoves([])
-        setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
+        finalizeTurn(nextBoard)
         return
       }
     }
