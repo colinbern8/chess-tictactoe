@@ -26,12 +26,12 @@ function App() {
     white: [],
     black: [],
   })
-  const [capturedPieces] = useState({
+  const [capturedPieces, setCapturedPieces] = useState({
     white: [],
     black: [],
   })
   const [selectedPiece, setSelectedPiece] = useState(null)
-  const [selectedSquare, setSelectedSquare] = useState(null)
+  const [selectedMovePiece, setSelectedMovePiece] = useState(null)
   const [validMoves, setValidMoves] = useState([])
   const [winner] = useState(null)
 
@@ -51,45 +51,283 @@ function App() {
     }
   }, [remainingPieces])
 
+  useEffect(() => {
+    setSelectedMovePiece(null)
+    setValidMoves([])
+  }, [currentPlayer, phase])
+
+  const createPiece = (type, player, row) => {
+    if (type !== 'pawn') {
+      return { type, player }
+    }
+    const initialDirection = player === 'white' ? -1 : 1
+    const isAtOppositeEdge =
+      (player === 'white' && row === 0) ||
+      (player === 'black' && row === BOARD_SIZE - 1)
+    return {
+      type,
+      player,
+      direction: isAtOppositeEdge ? -initialDirection : initialDirection,
+    }
+  }
+
+  const isWithinBounds = (row, col) =>
+    row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE
+
+  const getLinearMoves = (row, col, piece, directions) => {
+    const moves = []
+
+    directions.forEach(([deltaRow, deltaCol]) => {
+      let nextRow = row + deltaRow
+      let nextCol = col + deltaCol
+
+      while (isWithinBounds(nextRow, nextCol)) {
+        const target = board[nextRow][nextCol]
+        if (!target) {
+          moves.push({ row: nextRow, col: nextCol })
+        } else {
+          if (target.player !== piece.player) {
+            moves.push({ row: nextRow, col: nextCol })
+          }
+          break
+        }
+        nextRow += deltaRow
+        nextCol += deltaCol
+      }
+    })
+
+    return moves
+  }
+
+  const getKnightMoves = (row, col, piece) => {
+    const moves = []
+    const offsets = [
+      [2, 1],
+      [2, -1],
+      [-2, 1],
+      [-2, -1],
+      [1, 2],
+      [1, -2],
+      [-1, 2],
+      [-1, -2],
+    ]
+
+    offsets.forEach(([deltaRow, deltaCol]) => {
+      const nextRow = row + deltaRow
+      const nextCol = col + deltaCol
+      if (!isWithinBounds(nextRow, nextCol)) return
+      const target = board[nextRow][nextCol]
+      if (!target || target.player !== piece.player) {
+        moves.push({ row: nextRow, col: nextCol })
+      }
+    })
+
+    return moves
+  }
+
+  const getPawnMoves = (row, col, piece) => {
+    const moves = []
+    const direction =
+      piece.direction ?? (piece.player === 'white' ? -1 : 1)
+
+    const forwardRow = row + direction
+    if (
+      isWithinBounds(forwardRow, col) &&
+      !board[forwardRow][col]
+    ) {
+      moves.push({ row: forwardRow, col })
+    }
+
+    const captureCols = [col - 1, col + 1]
+    captureCols.forEach((captureCol) => {
+      if (!isWithinBounds(forwardRow, captureCol)) return
+      const target = board[forwardRow][captureCol]
+      if (target && target.player !== piece.player) {
+        moves.push({ row: forwardRow, col: captureCol })
+      }
+    })
+
+    return moves
+  }
+
+  const getValidMoves = (row, col, piece) => {
+    if (!piece) return []
+
+    switch (piece.type) {
+      case 'rook':
+        return getLinearMoves(row, col, piece, [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ])
+      case 'bishop':
+        return getLinearMoves(row, col, piece, [
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ])
+      case 'knight':
+        return getKnightMoves(row, col, piece)
+      case 'pawn':
+        return getPawnMoves(row, col, piece)
+      default:
+        return []
+    }
+  }
+
   const handleSelectPiece = (pieceType) => {
-    if (phase !== 'placement' || winner) return
+    if (winner) return
+    if (phase === 'movement' && remainingPieces[currentPlayer].length === 0) {
+      return
+    }
     if (!remainingPieces[currentPlayer].includes(pieceType)) return
     setSelectedPiece(pieceType)
+    setSelectedMovePiece(null)
+    setValidMoves([])
   }
 
   const handleSquareClick = (row, col) => {
-    if (phase !== 'placement' || winner) return
-    if (!selectedPiece) return
-    if (board[row][col]) return
+    if (winner) return
 
-    const nextBoard = board.map((boardRow) => boardRow.slice())
-    nextBoard[row][col] = {
-      type: selectedPiece,
-      player: currentPlayer,
+    const clickedPiece = board[row][col]
+    const isOwnPiece = clickedPiece && clickedPiece.player === currentPlayer
+    const isEmpty = !clickedPiece
+    const canPlacePiece =
+      selectedPiece && remainingPieces[currentPlayer].length > 0
+
+    const placePiece = () => {
+      const nextBoard = board.map((boardRow) => boardRow.slice())
+      nextBoard[row][col] = createPiece(selectedPiece, currentPlayer, row)
+
+      setBoard(nextBoard)
+      setRemainingPieces((prev) => {
+        const nextPlayerPieces = [...prev[currentPlayer]]
+        const pieceIndex = nextPlayerPieces.indexOf(selectedPiece)
+        if (pieceIndex !== -1) {
+          nextPlayerPieces.splice(pieceIndex, 1)
+        }
+        return {
+          ...prev,
+          [currentPlayer]: nextPlayerPieces,
+        }
+      })
+      setPiecesPlaced((prev) => ({
+        ...prev,
+        [currentPlayer]: [...prev[currentPlayer], selectedPiece],
+      }))
+      setCapturedPieces((prev) => {
+        const nextCaptured = [...prev[currentPlayer]]
+        const capturedIndex = nextCaptured.indexOf(selectedPiece)
+        if (capturedIndex !== -1) {
+          nextCaptured.splice(capturedIndex, 1)
+        }
+        return {
+          ...prev,
+          [currentPlayer]: nextCaptured,
+        }
+      })
+      setSelectedMovePiece(null)
+      setValidMoves([])
+      setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
     }
 
-    setBoard(nextBoard)
-    setRemainingPieces((prev) => {
-      const nextPlayerPieces = [...prev[currentPlayer]]
-      const pieceIndex = nextPlayerPieces.indexOf(selectedPiece)
-      if (pieceIndex !== -1) {
-        nextPlayerPieces.splice(pieceIndex, 1)
+    if (phase === 'placement') {
+      if (!canPlacePiece || !isEmpty) return
+      placePiece()
+      return
+    }
+
+    if (selectedMovePiece) {
+      const isValidDestination = validMoves.some(
+        (move) => move.row === row && move.col === col
+      )
+      if (isValidDestination) {
+        const movingPiece = { ...selectedMovePiece.piece }
+        const capturedPiece = clickedPiece
+
+        if (movingPiece.type === 'pawn') {
+          const direction =
+            movingPiece.direction ??
+            (movingPiece.player === 'white' ? -1 : 1)
+          const edgeRow = direction === -1 ? 0 : BOARD_SIZE - 1
+          if (row === edgeRow) {
+            movingPiece.direction = -direction
+          } else {
+            movingPiece.direction = direction
+          }
+        }
+
+        const nextBoard = board.map((boardRow) => boardRow.slice())
+        nextBoard[selectedMovePiece.row][selectedMovePiece.col] = null
+        nextBoard[row][col] = movingPiece
+        setBoard(nextBoard)
+
+        if (capturedPiece && capturedPiece.player !== currentPlayer) {
+          setCapturedPieces((prev) => ({
+            ...prev,
+            [capturedPiece.player]: [
+              ...prev[capturedPiece.player],
+              capturedPiece.type,
+            ],
+          }))
+          setRemainingPieces((prev) => ({
+            ...prev,
+            [capturedPiece.player]: [
+              ...prev[capturedPiece.player],
+              capturedPiece.type,
+            ],
+          }))
+          setPiecesPlaced((prev) => {
+            const nextPlaced = [...prev[capturedPiece.player]]
+            const capturedIndex = nextPlaced.indexOf(capturedPiece.type)
+            if (capturedIndex !== -1) {
+              nextPlaced.splice(capturedIndex, 1)
+            }
+            return {
+              ...prev,
+              [capturedPiece.player]: nextPlaced,
+            }
+          })
+        }
+
+        setSelectedMovePiece(null)
+        setValidMoves([])
+        setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
+        return
       }
-      return {
-        ...prev,
-        [currentPlayer]: nextPlayerPieces,
+    }
+
+    if (isOwnPiece) {
+      if (
+        selectedMovePiece &&
+        selectedMovePiece.row === row &&
+        selectedMovePiece.col === col
+      ) {
+        setSelectedMovePiece(null)
+        setValidMoves([])
+        return
       }
-    })
-    setPiecesPlaced((prev) => ({
-      ...prev,
-      [currentPlayer]: [...prev[currentPlayer], selectedPiece],
-    }))
-    setSelectedSquare({ row, col })
+      setSelectedMovePiece({ row, col, piece: clickedPiece })
+      setValidMoves(getValidMoves(row, col, clickedPiece))
+      return
+    }
+
+    if (isEmpty && canPlacePiece && !selectedMovePiece) {
+      placePiece()
+      return
+    }
+
+    setSelectedMovePiece(null)
     setValidMoves([])
-    setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
   }
 
-  const canPlace = phase === 'placement' && !winner
+  const canPlace =
+    !winner &&
+    selectedPiece &&
+    (phase === 'placement' ||
+      (phase === 'movement' && remainingPieces[currentPlayer].length > 0))
 
   return (
     <div className="app">
@@ -113,7 +351,7 @@ function App() {
           board={board}
           onSquareClick={handleSquareClick}
           canPlace={canPlace}
-          selectedSquare={selectedSquare}
+          selectedSquare={selectedMovePiece}
           validMoves={validMoves}
         />
         <GameInfo

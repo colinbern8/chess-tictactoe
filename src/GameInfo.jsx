@@ -17,6 +17,7 @@ const GameInfo = ({
   totalPieces,
 }) => {
   const isPlacement = phase === 'placement'
+  const canPlacePieces = remainingPieces[currentPlayer].length > 0
 
   return (
     <aside className="game-info">
@@ -44,11 +45,13 @@ const GameInfo = ({
         ) : null}
       </section>
 
-      {isPlacement && !winner ? (
+      {!winner && canPlacePieces ? (
         <section className="info-section">
           <h3 className="section-title">Select a piece to place</h3>
           <p className="muted">
-            Click a piece, then choose an empty square.
+            {isPlacement
+              ? 'Click a piece, then choose an empty square.'
+              : 'Place a remaining piece or move one of your pieces.'}
           </p>
           {remainingPieces[currentPlayer].length ? (
             <div className="piece-options">
