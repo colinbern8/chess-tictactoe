@@ -174,8 +174,11 @@
   letter-spacing: 0.04em;
 }
 
-.piece__symbol {
+.piece__image {
+  width: 72%;
+  height: 72%;
   display: block;
+  object-fit: contain;
 }
 
 .game-info {
