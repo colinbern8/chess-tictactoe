@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import Board from './Board'
 import GameInfo from './GameInfo'
+import GameMenu from './components/GameMenu'
 import { getValidMoves } from './game/pieceMovement'
 import { checkWinner } from './game/winCondition'
+import { checkDraw } from './game/drawCondition'
+import { getAIMove } from './game/aiOpponent'
+import { BOARD_SIZE, INITIAL_PIECES } from './game/gameConstants'
 import './App.css'
-
-const BOARD_SIZE = 4
-const INITIAL_PIECES = ['rook', 'knight', 'bishop', 'pawn']
 
 const createEmptyBoard = () =>
   Array.from({ length: BOARD_SIZE }, () =>
@@ -22,6 +23,8 @@ const createInitialPiecesState = () => ({
 })
 
 function App() {
+  const [gameStarted, setGameStarted] = useState(false)
+  const [gameMode, setGameMode] = useState('2player')
   const [board, setBoard] = useState(createEmptyBoard)
   const [currentPlayer, setCurrentPlayer] = useState('white')
   const [phase, setPhase] = useState('placement')
@@ -40,6 +43,7 @@ function App() {
   const [selectedMovePiece, setSelectedMovePiece] = useState(null)
   const [validMoves, setValidMoves] = useState([])
   const [winner, setWinner] = useState(null)
+  const [isDraw, setIsDraw] = useState(false)
 
   useEffect(() => {
     const available = remainingPieces[currentPlayer]
@@ -120,6 +124,7 @@ function App() {
   }
 
   const resetGame = () => {
+    setGameStarted(false)
     setBoard(createEmptyBoard())
     setCurrentPlayer('white')
     setPhase('placement')
@@ -130,10 +135,17 @@ function App() {
     setSelectedMovePiece(null)
     setValidMoves([])
     setWinner(null)
+    setIsDraw(false)
+  }
+
+  const handleStartGame = ({ mode }) => {
+    setGameMode(mode)
+    setGameStarted(true)
   }
 
   const handleSelectPiece = (pieceType) => {
-    if (winner) return
+    if (winner || isDraw) return
+    if (gameMode === 'ai' && currentPlayer === 'black') return
     if (phase === 'movement' && remainingPieces[currentPlayer].length === 0) {
       return
     }
@@ -144,7 +156,8 @@ function App() {
   }
 
   const handleSquareClick = (row, col) => {
-    if (winner) return
+    if (winner || isDraw) return
+    if (gameMode === 'ai' && currentPlayer === 'black') return
 
     const clickedPiece = board[row][col]
     const isOwnPiece = clickedPiece && clickedPiece.player === currentPlayer
@@ -152,34 +165,34 @@ function App() {
     const canPlacePiece =
       selectedPiece && remainingPieces[currentPlayer].length > 0
 
-    const placePiece = () => {
+    const placePiece = (pieceType, player) => {
       const nextBoard = board.map((boardRow) => boardRow.slice())
-      nextBoard[row][col] = createPiece(selectedPiece, currentPlayer, row)
+      nextBoard[row][col] = createPiece(pieceType, player, row)
 
       setRemainingPieces((prev) => {
-        const nextPlayerPieces = [...prev[currentPlayer]]
-        const pieceIndex = nextPlayerPieces.indexOf(selectedPiece)
+        const nextPlayerPieces = [...prev[player]]
+        const pieceIndex = nextPlayerPieces.indexOf(pieceType)
         if (pieceIndex !== -1) {
           nextPlayerPieces.splice(pieceIndex, 1)
         }
         return {
           ...prev,
-          [currentPlayer]: nextPlayerPieces,
+          [player]: nextPlayerPieces,
         }
       })
       setPiecesPlaced((prev) => ({
         ...prev,
-        [currentPlayer]: [...prev[currentPlayer], selectedPiece],
+        [player]: [...prev[player], pieceType],
       }))
       setCapturedPieces((prev) => {
-        const nextCaptured = [...prev[currentPlayer]]
-        const capturedIndex = nextCaptured.indexOf(selectedPiece)
+        const nextCaptured = [...prev[player]]
+        const capturedIndex = nextCaptured.indexOf(pieceType)
         if (capturedIndex !== -1) {
           nextCaptured.splice(capturedIndex, 1)
         }
         return {
           ...prev,
-          [currentPlayer]: nextCaptured,
+          [player]: nextCaptured,
         }
       })
       finalizeTurn(nextBoard)
@@ -187,7 +200,7 @@ function App() {
 
     if (phase === 'placement') {
       if (!canPlacePiece || !isEmpty) return
-      placePiece()
+      placePiece(selectedPiece, currentPlayer)
       return
     }
 
@@ -237,7 +250,7 @@ function App() {
     }
 
     if (isEmpty && canPlacePiece && !selectedMovePiece) {
-      placePiece()
+      placePiece(selectedPiece, currentPlayer)
       return
     }
 
@@ -247,12 +260,108 @@ function App() {
 
   const canPlace =
     !winner &&
+    !isDraw &&
     selectedPiece &&
     (phase === 'placement' ||
       (phase === 'movement' && remainingPieces[currentPlayer].length > 0))
 
+  useEffect(() => {
+    if (!gameStarted || winner || isDraw) return
+    if (checkDraw(board, currentPlayer, remainingPieces)) {
+      setIsDraw(true)
+    }
+  }, [board, currentPlayer, remainingPieces, winner, isDraw, gameStarted])
+
+  useEffect(() => {
+    if (!gameStarted) return undefined
+    if (gameMode !== 'ai') return undefined
+    if (currentPlayer !== 'black') return undefined
+    if (winner || isDraw) return undefined
+
+    const timeoutId = setTimeout(() => {
+      const aiMove = getAIMove(board, remainingPieces, phase)
+      if (!aiMove) return
+      if (aiMove.type === 'place') {
+        const { piece, row, col } = aiMove
+        if (board[row][col]) return
+        const nextBoard = board.map((boardRow) => boardRow.slice())
+        nextBoard[row][col] = createPiece(piece, 'black', row)
+
+        setRemainingPieces((prev) => {
+          const nextPlayerPieces = [...prev.black]
+          const pieceIndex = nextPlayerPieces.indexOf(piece)
+          if (pieceIndex !== -1) {
+            nextPlayerPieces.splice(pieceIndex, 1)
+          }
+          return {
+            ...prev,
+            black: nextPlayerPieces,
+          }
+        })
+        setPiecesPlaced((prev) => ({
+          ...prev,
+          black: [...prev.black, piece],
+        }))
+        setCapturedPieces((prev) => {
+          const nextCaptured = [...prev.black]
+          const capturedIndex = nextCaptured.indexOf(piece)
+          if (capturedIndex !== -1) {
+            nextCaptured.splice(capturedIndex, 1)
+          }
+          return {
+            ...prev,
+            black: nextCaptured,
+          }
+        })
+        finalizeTurn(nextBoard)
+        return
+      }
+
+      if (aiMove.type === 'move') {
+        const { fromRow, fromCol, toRow, toCol } = aiMove
+        const movingPiece = board[fromRow]?.[fromCol]
+        if (!movingPiece) return
+        const nextMovingPiece = { ...movingPiece }
+        const capturedPiece = board[toRow]?.[toCol] ?? null
+
+        if (nextMovingPiece.type === 'pawn') {
+          const direction =
+            nextMovingPiece.direction ??
+            (nextMovingPiece.player === 'white' ? -1 : 1)
+          const edgeRow = direction === -1 ? 0 : BOARD_SIZE - 1
+          if (toRow === edgeRow) {
+            nextMovingPiece.direction = -direction
+          } else {
+            nextMovingPiece.direction = direction
+          }
+        }
+
+        const nextBoard = board.map((boardRow) => boardRow.slice())
+        nextBoard[fromRow][fromCol] = null
+        nextBoard[toRow][toCol] = nextMovingPiece
+        applyCapture(capturedPiece)
+        finalizeTurn(nextBoard)
+      }
+    }, 600)
+
+    return () => clearTimeout(timeoutId)
+  }, [
+    board,
+    currentPlayer,
+    gameMode,
+    gameStarted,
+    isDraw,
+    phase,
+    remainingPieces,
+    winner,
+  ])
+
+  if (!gameStarted) {
+    return <GameMenu onStart={handleStartGame} />
+  }
+
   return (
-    <div className="app">
+    <div className="app" data-game-mode={gameMode}>
       <header className="app__header">
         <div>
           <p className="eyebrow">Tic-Tac-Toe Chess</p>
@@ -290,6 +399,7 @@ function App() {
           selectedPiece={selectedPiece}
           onSelectPiece={handleSelectPiece}
           winner={winner}
+          isDraw={isDraw}
           totalPieces={INITIAL_PIECES.length}
         />
       </main>

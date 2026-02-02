@@ -1,6 +1,5 @@
 import Piece from './Piece'
-
-const PLAYERS = ['white', 'black']
+import { PLAYERS } from './game/gameConstants'
 
 const formatName = (value) =>
   value ? value.charAt(0).toUpperCase() + value.slice(1) : ''
@@ -13,14 +12,53 @@ const GameInfo = ({
   piecesPlaced,
   selectedPiece,
   onSelectPiece,
+  onReset,
   winner,
+  isDraw,
   totalPieces,
 }) => {
   const isPlacement = phase === 'placement'
   const canPlacePieces = remainingPieces[currentPlayer].length > 0
+  const handleReset = () => {
+    if (onReset) {
+      onReset()
+      return
+    }
+    document.querySelector('.reset-button')?.click()
+  }
 
   return (
     <aside className="game-info">
+      {winner ? (
+        <div className={`winner-banner winner-banner--${winner}`}>
+          <div>
+            <p className="winner-banner__label">Winner</p>
+            <p className="winner-banner__name">{formatName(winner)} wins!</p>
+          </div>
+          <button
+            type="button"
+            className="winner-banner__button"
+            onClick={handleReset}
+          >
+            Play Again
+          </button>
+        </div>
+      ) : null}
+      {!winner && isDraw ? (
+        <div className="winner-banner winner-banner--draw">
+          <div>
+            <p className="winner-banner__label">Result</p>
+            <p className="winner-banner__name">Draw game</p>
+          </div>
+          <button
+            type="button"
+            className="winner-banner__button"
+            onClick={handleReset}
+          >
+            Play Again
+          </button>
+        </div>
+      ) : null}
       <section className="info-section">
         <h2 className="section-title">Game Status</h2>
         <div className="status-row">
@@ -43,9 +81,15 @@ const GameInfo = ({
             </span>
           </div>
         ) : null}
+        {isDraw ? (
+          <div className="status-row">
+            <span className="status-label">Result</span>
+            <span className="phase-pill">Draw</span>
+          </div>
+        ) : null}
       </section>
 
-      {!winner && canPlacePieces ? (
+      {!winner && !isDraw && canPlacePieces ? (
         <section className="info-section">
           <h3 className="section-title">Select a piece to place</h3>
           <p className="muted">
