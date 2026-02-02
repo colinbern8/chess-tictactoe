@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Board from './Board'
 import GameInfo from './GameInfo'
+import { getValidMoves } from './game/pieceMovement'
 import { checkWinner } from './game/winCondition'
 import './App.css'
 
@@ -73,112 +74,6 @@ function App() {
       type,
       player,
       direction: isAtOppositeEdge ? -initialDirection : initialDirection,
-    }
-  }
-
-  const isWithinBounds = (row, col) =>
-    row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE
-
-  const getLinearMoves = (row, col, piece, directions) => {
-    const moves = []
-
-    directions.forEach(([deltaRow, deltaCol]) => {
-      let nextRow = row + deltaRow
-      let nextCol = col + deltaCol
-
-      while (isWithinBounds(nextRow, nextCol)) {
-        const target = board[nextRow][nextCol]
-        if (!target) {
-          moves.push({ row: nextRow, col: nextCol })
-        } else {
-          if (target.player !== piece.player) {
-            moves.push({ row: nextRow, col: nextCol })
-          }
-          break
-        }
-        nextRow += deltaRow
-        nextCol += deltaCol
-      }
-    })
-
-    return moves
-  }
-
-  const getKnightMoves = (row, col, piece) => {
-    const moves = []
-    const offsets = [
-      [2, 1],
-      [2, -1],
-      [-2, 1],
-      [-2, -1],
-      [1, 2],
-      [1, -2],
-      [-1, 2],
-      [-1, -2],
-    ]
-
-    offsets.forEach(([deltaRow, deltaCol]) => {
-      const nextRow = row + deltaRow
-      const nextCol = col + deltaCol
-      if (!isWithinBounds(nextRow, nextCol)) return
-      const target = board[nextRow][nextCol]
-      if (!target || target.player !== piece.player) {
-        moves.push({ row: nextRow, col: nextCol })
-      }
-    })
-
-    return moves
-  }
-
-  const getPawnMoves = (row, col, piece) => {
-    const moves = []
-    const direction =
-      piece.direction ?? (piece.player === 'white' ? -1 : 1)
-
-    const forwardRow = row + direction
-    if (
-      isWithinBounds(forwardRow, col) &&
-      !board[forwardRow][col]
-    ) {
-      moves.push({ row: forwardRow, col })
-    }
-
-    const captureCols = [col - 1, col + 1]
-    captureCols.forEach((captureCol) => {
-      if (!isWithinBounds(forwardRow, captureCol)) return
-      const target = board[forwardRow][captureCol]
-      if (target && target.player !== piece.player) {
-        moves.push({ row: forwardRow, col: captureCol })
-      }
-    })
-
-    return moves
-  }
-
-  const getValidMoves = (row, col, piece) => {
-    if (!piece) return []
-
-    switch (piece.type) {
-      case 'rook':
-        return getLinearMoves(row, col, piece, [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ])
-      case 'bishop':
-        return getLinearMoves(row, col, piece, [
-          [1, 1],
-          [1, -1],
-          [-1, 1],
-          [-1, -1],
-        ])
-      case 'knight':
-        return getKnightMoves(row, col, piece)
-      case 'pawn':
-        return getPawnMoves(row, col, piece)
-      default:
-        return []
     }
   }
 
@@ -337,7 +232,7 @@ function App() {
         return
       }
       setSelectedMovePiece({ row, col, piece: clickedPiece })
-      setValidMoves(getValidMoves(row, col, clickedPiece))
+      setValidMoves(getValidMoves(board, row, col, clickedPiece))
       return
     }
 
