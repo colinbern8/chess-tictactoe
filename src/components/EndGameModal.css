@@ -1,0 +1,119 @@
+.end-game-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.end-game-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  padding: 40px 36px;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+}
+
+.end-game-card--white {
+  border-top: 3px solid #d4a017;
+}
+
+.end-game-card--black {
+  border-top: 3px solid var(--accent);
+  background: #e7eef8;
+  color: #0c1017;
+}
+
+.end-game-card--draw {
+  border-top: 3px solid var(--panel-border);
+}
+
+.end-game-card--black .end-game-title {
+  color: #0c1017;
+}
+
+.end-game-card--black .end-game-subtitle {
+  color: #4a5568;
+}
+
+.end-game-card--black .end-game-close {
+  color: #5a6776;
+}
+
+.end-game-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.end-game-close:hover {
+  color: #fff;
+}
+
+.end-game-emoji {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.end-game-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #fff;
+}
+
+.end-game-subtitle {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0 0 28px;
+}
+
+.end-game-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.end-game-btn-primary {
+  background: var(--accent);
+  color: #0c1017;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.end-game-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(93, 169, 255, 0.4);
+}
+
+.end-game-btn-secondary {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.end-game-btn-secondary:hover {
+  border-color: var(--accent);
+  color: #fff;
+}

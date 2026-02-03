@@ -1,0 +1,139 @@
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 10, 15, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+  backdrop-filter: blur(4px);
+}
+
+.tutorial-card {
+  width: min(500px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+
+.tutorial-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorial-eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.tutorial-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.tutorial-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.tutorial-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tutorial-step {
+  background: rgba(9, 13, 20, 0.45);
+  border: 1px solid rgba(42, 51, 66, 0.7);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.tutorial-step__number {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0b1220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.tutorial-step__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorial-step__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tutorial-step__text {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.tutorial-piece-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.tutorial-piece {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.tutorial-piece .piece {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
+.tutorial-piece__name {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.tutorial-piece__desc {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.tutorial-close {
+  align-self: center;
+}
+
+@media (max-width: 600px) {
+  .tutorial-card {
+    padding: 20px;
+  }
+
+  .tutorial-close {
+    width: 100%;
+    text-align: center;
+  }
+}

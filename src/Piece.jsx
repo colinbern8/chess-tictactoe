@@ -1,12 +1,3 @@
-import rookWhite from './assets/rook-white.svg'
-import rookBlack from './assets/rook-black.svg'
-import knightWhite from './assets/knight-white.svg'
-import knightBlack from './assets/knight-black.svg'
-import bishopWhite from './assets/bishop-white.svg'
-import bishopBlack from './assets/bishop-black.svg'
-import pawnWhite from './assets/pawn-white.svg'
-import pawnBlack from './assets/pawn-black.svg'
-
 const PIECE_NAMES = {
   rook: 'Rook',
   knight: 'Knight',
@@ -14,35 +5,35 @@ const PIECE_NAMES = {
   pawn: 'Pawn',
 }
 
+const PIECE_SYMBOLS = {
+  white: {
+    rook: '♖',
+    knight: '♘',
+    bishop: '♗',
+    pawn: '♙',
+  },
+  black: {
+    rook: '♜',
+    knight: '♞',
+    bishop: '♝',
+    pawn: '♟',
+  },
+}
+
 const Piece = ({ type, player, variant = 'board' }) => {
   const label = `${player} ${PIECE_NAMES[type] ?? type}`
-  const pieceImages = {
-    white: {
-      rook: rookWhite,
-      knight: knightWhite,
-      bishop: bishopWhite,
-      pawn: pawnWhite,
-    },
-    black: {
-      rook: rookBlack,
-      knight: knightBlack,
-      bishop: bishopBlack,
-      pawn: pawnBlack,
-    },
-  }
-  const imageSrc = pieceImages[player]?.[type]
+  const symbol = PIECE_SYMBOLS[player]?.[type]
+  const sizeClass = variant === 'hand' ? 'piece-icon--small' : ''
 
   return (
-    <div
-      className={`piece piece--${player} piece--${variant}`}
+    <span
+      className={`piece-icon piece-icon--${player} ${sizeClass}`.trim()}
       role="img"
       aria-label={label}
       title={label}
     >
-      {imageSrc ? (
-        <img className="piece__image" src={imageSrc} alt="" aria-hidden="true" />
-      ) : null}
-    </div>
+      {symbol ?? ''}
+    </span>
   )
 }
 

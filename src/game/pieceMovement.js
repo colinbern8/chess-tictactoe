@@ -94,6 +94,49 @@ const getPawnMoves = (board, row, col, piece) => {
   return moves
 }
 
+const getBishopMoves = (board, row, col, piece) => {
+  const diagonalMoves = getLinearMoves(board, row, col, piece, [
+    [1, 1],
+    [1, -1],
+    [-1, 1],
+    [-1, -1],
+  ])
+
+  if (piece.hasUsedOrthogonal) {
+    return diagonalMoves
+  }
+
+  const boardSize = board.length
+  const orthogonalDirections = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ]
+  const orthogonalMoves = []
+  let hasOrthogonalCapture = false
+
+  orthogonalDirections.forEach(([deltaRow, deltaCol]) => {
+    const nextRow = row + deltaRow
+    const nextCol = col + deltaCol
+    if (!isWithinBounds(nextRow, nextCol, boardSize)) return
+    const target = board[nextRow][nextCol]
+    if (!target) {
+      orthogonalMoves.push({ row: nextRow, col: nextCol })
+      return
+    }
+    if (target.player !== piece.player) {
+      hasOrthogonalCapture = true
+    }
+  })
+
+  if (hasOrthogonalCapture) {
+    return diagonalMoves
+  }
+
+  return diagonalMoves.concat(orthogonalMoves)
+}
+
 export const getValidMoves = (board, row, col, piece) => {
   if (!piece) return []
   const boardSize = board.length
@@ -108,12 +151,7 @@ export const getValidMoves = (board, row, col, piece) => {
         [0, -1],
       ])
     case 'bishop':
-      return getLinearMoves(board, row, col, piece, [
-        [1, 1],
-        [1, -1],
-        [-1, 1],
-        [-1, -1],
-      ])
+      return getBishopMoves(board, row, col, piece)
     case 'knight':
       return getKnightMoves(board, row, col, piece)
     case 'pawn':

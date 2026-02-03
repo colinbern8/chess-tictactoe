@@ -1,0 +1,68 @@
+.move-history {
+  max-height: 140px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(9, 13, 20, 0.5);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.move-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.move-entry--latest {
+  background: rgba(93, 169, 255, 0.1);
+  color: #fff;
+}
+
+.move-number {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  min-width: 22px;
+  text-align: right;
+}
+
+.move-pill {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.move-piece {
+  font-size: 0.95rem;
+}
+
+.move-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.move-history::-webkit-scrollbar {
+  width: 6px;
+}
+
+.move-history::-webkit-scrollbar-track {
+  background: rgba(9, 13, 20, 0.2);
+  border-radius: 999px;
+}
+
+.move-history::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+.move-history {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(9, 13, 20, 0.2);
+}

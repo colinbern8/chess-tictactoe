@@ -2,12 +2,20 @@ import { useEffect, useState } from 'react'
 import Board from './Board'
 import GameInfo from './GameInfo'
 import GameMenu from './components/GameMenu'
+import EndGameModal from './components/EndGameModal'
+import Tutorial from './components/Tutorial'
 import { getValidMoves } from './game/pieceMovement'
 import { checkWinner } from './game/winCondition'
 import { checkDraw } from './game/drawCondition'
 import { getAIMove } from './game/aiOpponent'
 import { BOARD_SIZE, INITIAL_PIECES } from './game/gameConstants'
+import { playSound } from './game/soundManager'
+import { findThreats, getBlockingSquare } from './game/threatDetection'
 import './App.css'
+import './components/EndGameModal.css'
+import './components/Tutorial.css'
+
+const isDev = import.meta.env.DEV
 
 const createEmptyBoard = () =>
   Array.from({ length: BOARD_SIZE }, () =>
@@ -24,7 +32,8 @@ const createInitialPiecesState = () => ({
 
 function App() {
   const [gameStarted, setGameStarted] = useState(false)
-  const [gameMode, setGameMode] = useState('2player')
+  const [gameMode, setGameMode] = useState(null)
+  const [difficulty, setDifficulty] = useState('medium')
   const [board, setBoard] = useState(createEmptyBoard)
   const [currentPlayer, setCurrentPlayer] = useState('white')
   const [phase, setPhase] = useState('placement')
@@ -43,7 +52,20 @@ function App() {
   const [selectedMovePiece, setSelectedMovePiece] = useState(null)
   const [validMoves, setValidMoves] = useState([])
   const [winner, setWinner] = useState(null)
+  const [winningSquares, setWinningSquares] = useState([])
   const [isDraw, setIsDraw] = useState(false)
+  const [drawReason, setDrawReason] = useState(null)
+  const [boardHistory, setBoardHistory] = useState([])
+  const [movesSinceCapture, setMovesSinceCapture] = useState(0)
+  const [showTutorial, setShowTutorial] = useState(false)
+  const [showEndGame, setShowEndGame] = useState(false)
+  const [moveHistory, setMoveHistory] = useState([])
+  const [history, setHistory] = useState([])
+  const [isMuted, setIsMuted] = useState(false)
+  const [forcedBlockSquare, setForcedBlockSquare] = useState(null)
+  const [statusMessage, setStatusMessage] = useState('')
+  const [aiPlayer, setAiPlayer] = useState(null)
+  const [humanPlayer, setHumanPlayer] = useState(null)
 
   useEffect(() => {
     const available = remainingPieces[currentPlayer]
@@ -66,9 +88,40 @@ function App() {
     setValidMoves([])
   }, [currentPlayer, phase])
 
+  useEffect(() => {
+    if (phase === 'movement') {
+      setForcedBlockSquare(null)
+      setStatusMessage('')
+    }
+  }, [phase])
+
+  useEffect(() => {
+    setShowTutorial(true)
+  }, [])
+
+  useEffect(() => {
+    if (winner || isDraw) {
+      setShowEndGame(true)
+    }
+  }, [winner, isDraw])
+
+  useEffect(() => {
+    if (winner) {
+      playSound('win', isMuted)
+      return
+    }
+    if (isDraw) {
+      playSound('draw', isMuted)
+    }
+  }, [winner, isDraw, isMuted])
+
   const createPiece = (type, player, row) => {
     if (type !== 'pawn') {
-      return { type, player }
+      return {
+        type,
+        player,
+        ...(type === 'bishop' ? { hasUsedOrthogonal: false } : {}),
+      }
     }
     const initialDirection = player === 'white' ? -1 : 1
     const isAtOppositeEdge =
@@ -81,16 +134,98 @@ function App() {
     }
   }
 
-  const finalizeTurn = (nextBoard) => {
-    const nextWinner = checkWinner(nextBoard)
-    setBoard(nextBoard)
+  const resetBishopOrthogonalForPlayer = (nextBoard, player) => {
+    let didReset = false
+    const updatedBoard = nextBoard.map((boardRow) =>
+      boardRow.map((piece) => {
+        if (
+          piece &&
+          piece.player === player &&
+          piece.type === 'bishop' &&
+          piece.hasUsedOrthogonal
+        ) {
+          didReset = true
+          return { ...piece, hasUsedOrthogonal: false }
+        }
+        return piece
+      })
+    )
+    return didReset ? updatedBoard : nextBoard
+  }
+
+  const cloneBoardState = (sourceBoard) =>
+    sourceBoard.map((boardRow) =>
+      boardRow.map((piece) => (piece ? { ...piece } : null))
+    )
+
+  const clonePiecesState = (source) => ({
+    white: [...source.white],
+    black: [...source.black],
+  })
+
+  const cloneMoveHistory = (moves) =>
+    moves.map((move) => ({
+      ...move,
+      from: move.from ? { ...move.from } : null,
+      to: move.to ? { ...move.to } : null,
+    }))
+
+  const pushHistorySnapshot = () => {
+    const snapshot = {
+      board: cloneBoardState(board),
+      currentPlayer,
+      remainingPieces: clonePiecesState(remainingPieces),
+      capturedPieces: clonePiecesState(capturedPieces),
+      piecesPlaced: clonePiecesState(piecesPlaced),
+      phase,
+      moveHistory: cloneMoveHistory(moveHistory),
+      boardHistory: [...boardHistory],
+      movesSinceCapture,
+      forcedBlockSquare,
+      statusMessage,
+    }
+    setHistory((prev) => [...prev, snapshot])
+  }
+
+  const finalizeTurn = (nextBoard, wasCapture) => {
     setSelectedMovePiece(null)
     setValidMoves([])
-    if (nextWinner) {
-      setWinner(nextWinner)
+
+    if (phase === 'movement') {
+      const { winner: lineWinner, winningSquares: lineWinningSquares } =
+        checkWinner(nextBoard)
+
+      if (lineWinner) {
+        setBoard(nextBoard)
+        setWinner(lineWinner)
+        setWinningSquares(lineWinningSquares)
+        return
+      }
+    }
+
+    const nextPlayer = currentPlayer === 'white' ? 'black' : 'white'
+    const resetBoard = resetBishopOrthogonalForPlayer(nextBoard, nextPlayer)
+    const nextSnapshot = JSON.stringify(resetBoard)
+    const nextHistory = [...boardHistory, nextSnapshot]
+    const nextMovesSinceCapture =
+      phase === 'movement' ? (wasCapture ? 0 : movesSinceCapture) + 1 : 0
+
+    setBoardHistory(nextHistory)
+    setMovesSinceCapture(nextMovesSinceCapture)
+
+    let drawResult = null
+    if (phase === 'movement') {
+      drawResult = checkDraw(nextHistory, nextMovesSinceCapture)
+    }
+    if (drawResult) {
+      setBoard(resetBoard)
+      setIsDraw(true)
+      setDrawReason(drawResult)
       return
     }
-    setCurrentPlayer((prev) => (prev === 'white' ? 'black' : 'white'))
+
+    setBoard(resetBoard)
+    setCurrentPlayer(nextPlayer)
   }
 
   const applyCapture = (capturedPiece) => {
@@ -125,6 +260,8 @@ function App() {
 
   const resetGame = () => {
     setGameStarted(false)
+    setGameMode(null)
+    setDifficulty('medium')
     setBoard(createEmptyBoard())
     setCurrentPlayer('white')
     setPhase('placement')
@@ -135,29 +272,174 @@ function App() {
     setSelectedMovePiece(null)
     setValidMoves([])
     setWinner(null)
+    setWinningSquares([])
     setIsDraw(false)
+    setDrawReason(null)
+    setBoardHistory([])
+    setMovesSinceCapture(0)
+    setShowEndGame(false)
+    setMoveHistory([])
+    setHistory([])
+    setForcedBlockSquare(null)
+    setStatusMessage('')
+    setAiPlayer(null)
+    setHumanPlayer(null)
   }
 
-  const handleStartGame = ({ mode }) => {
+  const recordMove = (move) => {
+    setMoveHistory((prev) => [
+      ...prev,
+      {
+        ...move,
+        moveNumber: prev.length + 1,
+      },
+    ])
+  }
+
+  const handleStartGame = ({
+    mode,
+    playerColor,
+    difficulty: selectedDifficulty,
+  }) => {
     setGameMode(mode)
+    if (mode === 'ai') {
+      setHumanPlayer(playerColor)
+      setAiPlayer(playerColor === 'white' ? 'black' : 'white')
+    } else if (mode === 'training') {
+      setHumanPlayer('white')
+      setAiPlayer('black')
+    }
+    if (selectedDifficulty) {
+      setDifficulty(selectedDifficulty)
+    }
     setGameStarted(true)
   }
 
+  const handleUndo = () => {
+    if (gameMode !== 'training') return
+    setHistory((prev) => {
+      if (prev.length === 0) return prev
+      const previousState = prev[prev.length - 1]
+      setBoard(cloneBoardState(previousState.board))
+      setCurrentPlayer(previousState.currentPlayer)
+      setRemainingPieces(clonePiecesState(previousState.remainingPieces))
+      setCapturedPieces(clonePiecesState(previousState.capturedPieces))
+      setPiecesPlaced(clonePiecesState(previousState.piecesPlaced))
+      setPhase(previousState.phase)
+      setMoveHistory(cloneMoveHistory(previousState.moveHistory))
+      setBoardHistory([...(previousState.boardHistory ?? [])])
+      setMovesSinceCapture(previousState.movesSinceCapture ?? 0)
+      setSelectedPiece(null)
+      setSelectedMovePiece(null)
+      setValidMoves([])
+      setWinner(null)
+      setWinningSquares([])
+      setIsDraw(false)
+      setDrawReason(null)
+      setShowEndGame(false)
+      setForcedBlockSquare(previousState.forcedBlockSquare ?? null)
+      setStatusMessage(previousState.statusMessage ?? '')
+      return prev.slice(0, -1)
+    })
+  }
+
+  const isAiMode = gameMode === 'ai' || gameMode === 'training'
+
   const handleSelectPiece = (pieceType) => {
     if (winner || isDraw) return
-    if (gameMode === 'ai' && currentPlayer === 'black') return
+    if (isAiMode && aiPlayer && currentPlayer === aiPlayer) return
     if (phase === 'movement' && remainingPieces[currentPlayer].length === 0) {
       return
     }
     if (!remainingPieces[currentPlayer].includes(pieceType)) return
+    playSound('click', isMuted)
     setSelectedPiece(pieceType)
     setSelectedMovePiece(null)
     setValidMoves([])
   }
 
+  const placePieceAt = (pieceType, player, targetRow, targetCol) => {
+    pushHistorySnapshot()
+    const nextBoard = board.map((boardRow) => boardRow.slice())
+    nextBoard[targetRow][targetCol] = createPiece(pieceType, player, targetRow)
+    const nextPlayerPieces = [...remainingPieces[player]]
+    const pieceIndex = nextPlayerPieces.indexOf(pieceType)
+    if (pieceIndex !== -1) {
+      nextPlayerPieces.splice(pieceIndex, 1)
+    }
+
+    setRemainingPieces((prev) => {
+      const updatedPieces = [...prev[player]]
+      const updatedIndex = updatedPieces.indexOf(pieceType)
+      if (updatedIndex !== -1) {
+        updatedPieces.splice(updatedIndex, 1)
+      }
+      return {
+        ...prev,
+        [player]: updatedPieces,
+      }
+    })
+    setPiecesPlaced((prev) => ({
+      ...prev,
+      [player]: [...prev[player], pieceType],
+    }))
+    setCapturedPieces((prev) => {
+      const nextCaptured = [...prev[player]]
+      const capturedIndex = nextCaptured.indexOf(pieceType)
+      if (capturedIndex !== -1) {
+        nextCaptured.splice(capturedIndex, 1)
+      }
+      return {
+        ...prev,
+        [player]: nextCaptured,
+      }
+    })
+    playSound('place', isMuted)
+    recordMove({
+      player,
+      type: 'place',
+      piece: pieceType,
+      from: null,
+      to: { row: targetRow, col: targetCol },
+      captured: null,
+    })
+
+    const nextPlayer = player === 'white' ? 'black' : 'white'
+    const opponentCanPlace = remainingPieces[nextPlayer].length > 0
+
+    if (phase === 'placement' && nextPlayerPieces.length > 0 && opponentCanPlace) {
+      const threats = findThreats(nextBoard, player)
+      const blockingResult =
+        threats.length > 0 ? getBlockingSquare(nextBoard, nextPlayer) : null
+
+      if (blockingResult === 'unblockable') {
+        setBoard(nextBoard)
+        setWinner(player)
+        setWinningSquares([])
+        setShowEndGame(true)
+        setForcedBlockSquare(null)
+        setStatusMessage(`Unblockable threat! ${formatName(player)} wins!`)
+        return
+      }
+
+      if (blockingResult) {
+        setForcedBlockSquare(blockingResult)
+        setStatusMessage('')
+      } else {
+        setForcedBlockSquare(null)
+        setStatusMessage('')
+      }
+    } else {
+      setForcedBlockSquare(null)
+      setStatusMessage('')
+    }
+
+    finalizeTurn(nextBoard, false)
+  }
+
   const handleSquareClick = (row, col) => {
     if (winner || isDraw) return
-    if (gameMode === 'ai' && currentPlayer === 'black') return
+    if (isAiMode && aiPlayer && currentPlayer === aiPlayer) return
 
     const clickedPiece = board[row][col]
     const isOwnPiece = clickedPiece && clickedPiece.player === currentPlayer
@@ -165,42 +447,22 @@ function App() {
     const canPlacePiece =
       selectedPiece && remainingPieces[currentPlayer].length > 0
 
-    const placePiece = (pieceType, player) => {
-      const nextBoard = board.map((boardRow) => boardRow.slice())
-      nextBoard[row][col] = createPiece(pieceType, player, row)
-
-      setRemainingPieces((prev) => {
-        const nextPlayerPieces = [...prev[player]]
-        const pieceIndex = nextPlayerPieces.indexOf(pieceType)
-        if (pieceIndex !== -1) {
-          nextPlayerPieces.splice(pieceIndex, 1)
-        }
-        return {
-          ...prev,
-          [player]: nextPlayerPieces,
-        }
-      })
-      setPiecesPlaced((prev) => ({
-        ...prev,
-        [player]: [...prev[player], pieceType],
-      }))
-      setCapturedPieces((prev) => {
-        const nextCaptured = [...prev[player]]
-        const capturedIndex = nextCaptured.indexOf(pieceType)
-        if (capturedIndex !== -1) {
-          nextCaptured.splice(capturedIndex, 1)
-        }
-        return {
-          ...prev,
-          [player]: nextCaptured,
-        }
-      })
-      finalizeTurn(nextBoard)
-    }
-
     if (phase === 'placement') {
       if (!canPlacePiece || !isEmpty) return
-      placePiece(selectedPiece, currentPlayer)
+      if (
+        forcedBlockSquare &&
+        (forcedBlockSquare.row !== row || forcedBlockSquare.col !== col)
+      ) {
+        return
+      }
+      if (
+        forcedBlockSquare &&
+        forcedBlockSquare.row === row &&
+        forcedBlockSquare.col === col
+      ) {
+        setForcedBlockSquare(null)
+      }
+      placePieceAt(selectedPiece, currentPlayer, row, col)
       return
     }
 
@@ -209,8 +471,11 @@ function App() {
         (move) => move.row === row && move.col === col
       )
       if (isValidDestination) {
+        pushHistorySnapshot()
         const movingPiece = { ...selectedMovePiece.piece }
         const capturedPiece = clickedPiece
+        const wasCapture =
+          capturedPiece && capturedPiece.player !== currentPlayer
 
         if (movingPiece.type === 'pawn') {
           const direction =
@@ -224,12 +489,30 @@ function App() {
           }
         }
 
+        if (movingPiece.type === 'bishop') {
+          const deltaRow = row - selectedMovePiece.row
+          const deltaCol = col - selectedMovePiece.col
+          const isOrthogonal = deltaRow === 0 || deltaCol === 0
+          if (isOrthogonal) {
+            movingPiece.hasUsedOrthogonal = true
+          }
+        }
+
         const nextBoard = board.map((boardRow) => boardRow.slice())
         nextBoard[selectedMovePiece.row][selectedMovePiece.col] = null
         nextBoard[row][col] = movingPiece
         applyCapture(capturedPiece)
+        recordMove({
+          player: currentPlayer,
+          type: wasCapture ? 'capture' : 'move',
+          piece: movingPiece.type,
+          from: { row: selectedMovePiece.row, col: selectedMovePiece.col },
+          to: { row, col },
+          captured: wasCapture ? capturedPiece.type : null,
+        })
 
-        finalizeTurn(nextBoard)
+        playSound(wasCapture ? 'capture' : 'move', isMuted)
+        finalizeTurn(nextBoard, wasCapture)
         return
       }
     }
@@ -240,17 +523,19 @@ function App() {
         selectedMovePiece.row === row &&
         selectedMovePiece.col === col
       ) {
+        setSelectedPiece(null)
         setSelectedMovePiece(null)
         setValidMoves([])
         return
       }
+      setSelectedPiece(null)
       setSelectedMovePiece({ row, col, piece: clickedPiece })
       setValidMoves(getValidMoves(board, row, col, clickedPiece))
       return
     }
 
     if (isEmpty && canPlacePiece && !selectedMovePiece) {
-      placePiece(selectedPiece, currentPlayer)
+      placePieceAt(selectedPiece, currentPlayer, row, col)
       return
     }
 
@@ -262,85 +547,152 @@ function App() {
     !winner &&
     !isDraw &&
     selectedPiece &&
-    (phase === 'placement' ||
-      (phase === 'movement' && remainingPieces[currentPlayer].length > 0))
+    remainingPieces[currentPlayer].length > 0
+  const infoMessage =
+    statusMessage ||
+    (remainingPieces[currentPlayer].length > 0
+      ? 'Place a piece or move one of yours.'
+      : '')
 
-  useEffect(() => {
-    if (!gameStarted || winner || isDraw) return
-    if (checkDraw(board, currentPlayer, remainingPieces)) {
-      setIsDraw(true)
-    }
-  }, [board, currentPlayer, remainingPieces, winner, isDraw, gameStarted])
+  const handleEndGameHowToPlay = () => {
+    setShowEndGame(false)
+    setShowTutorial(true)
+  }
 
   useEffect(() => {
     if (!gameStarted) return undefined
-    if (gameMode !== 'ai') return undefined
-    if (currentPlayer !== 'black') return undefined
+    if (!isAiMode) return undefined
+    if (!aiPlayer) return undefined
+    if (currentPlayer !== aiPlayer) return undefined
     if (winner || isDraw) return undefined
 
     const timeoutId = setTimeout(() => {
-      const aiMove = getAIMove(board, remainingPieces, phase)
-      if (!aiMove) return
-      if (aiMove.type === 'place') {
-        const { piece, row, col } = aiMove
-        if (board[row][col]) return
-        const nextBoard = board.map((boardRow) => boardRow.slice())
-        nextBoard[row][col] = createPiece(piece, 'black', row)
-
-        setRemainingPieces((prev) => {
-          const nextPlayerPieces = [...prev.black]
-          const pieceIndex = nextPlayerPieces.indexOf(piece)
-          if (pieceIndex !== -1) {
-            nextPlayerPieces.splice(pieceIndex, 1)
-          }
-          return {
-            ...prev,
-            black: nextPlayerPieces,
-          }
-        })
-        setPiecesPlaced((prev) => ({
-          ...prev,
-          black: [...prev.black, piece],
-        }))
-        setCapturedPieces((prev) => {
-          const nextCaptured = [...prev.black]
-          const capturedIndex = nextCaptured.indexOf(piece)
-          if (capturedIndex !== -1) {
-            nextCaptured.splice(capturedIndex, 1)
-          }
-          return {
-            ...prev,
-            black: nextCaptured,
-          }
-        })
-        finalizeTurn(nextBoard)
-        return
-      }
-
-      if (aiMove.type === 'move') {
-        const { fromRow, fromCol, toRow, toCol } = aiMove
-        const movingPiece = board[fromRow]?.[fromCol]
-        if (!movingPiece) return
-        const nextMovingPiece = { ...movingPiece }
-        const capturedPiece = board[toRow]?.[toCol] ?? null
-
-        if (nextMovingPiece.type === 'pawn') {
-          const direction =
-            nextMovingPiece.direction ??
-            (nextMovingPiece.player === 'white' ? -1 : 1)
-          const edgeRow = direction === -1 ? 0 : BOARD_SIZE - 1
-          if (toRow === edgeRow) {
-            nextMovingPiece.direction = -direction
-          } else {
-            nextMovingPiece.direction = direction
-          }
+      try {
+        if (isDev) {
+          console.log('[AI] turn detected', {
+            phase,
+            currentPlayer,
+            remainingAi: remainingPieces[aiPlayer]?.length ?? 0,
+            forcedBlockSquare,
+          })
         }
 
-        const nextBoard = board.map((boardRow) => boardRow.slice())
-        nextBoard[fromRow][fromCol] = null
-        nextBoard[toRow][toCol] = nextMovingPiece
-        applyCapture(capturedPiece)
-        finalizeTurn(nextBoard)
+        if (
+          phase === 'placement' &&
+          forcedBlockSquare &&
+          remainingPieces[aiPlayer].length > 0
+        ) {
+          const forcedPiece = remainingPieces[aiPlayer][0]
+          if (isDev) {
+            console.log('[AI] forced block placement', {
+              piece: forcedPiece,
+              row: forcedBlockSquare.row,
+              col: forcedBlockSquare.col,
+            })
+          }
+          placePieceAt(
+            forcedPiece,
+            aiPlayer,
+            forcedBlockSquare.row,
+            forcedBlockSquare.col
+          )
+          return
+        }
+
+        const aiMove = getAIMove(
+          board,
+          remainingPieces,
+          phase,
+          difficulty,
+          aiPlayer
+        )
+        if (isDev) {
+          console.log('[AI] move decided', aiMove)
+        }
+        if (!aiMove) {
+          if (isDev) {
+            console.error('[AI] no move returned - declaring draw')
+          }
+          setIsDraw(true)
+          setDrawReason('stalemate')
+          return
+        }
+        if (aiMove.type === 'place') {
+          const { piece, row, col } = aiMove
+          if (board[row][col]) {
+            if (isDev) {
+              console.error('[AI] invalid place target occupied', { row, col })
+            }
+            return
+          }
+          placePieceAt(piece, aiPlayer, row, col)
+          if (isDev) {
+            console.log('[AI] place applied', { piece, row, col })
+          }
+          return
+        }
+
+        if (aiMove.type === 'move') {
+          const { fromRow, fromCol, toRow, toCol } = aiMove
+          const movingPiece = board[fromRow]?.[fromCol]
+          if (!movingPiece) {
+            if (isDev) {
+              console.error('[AI] invalid move: missing piece', {
+                fromRow,
+                fromCol,
+              })
+            }
+            return
+          }
+          pushHistorySnapshot()
+          const nextMovingPiece = { ...movingPiece }
+          const capturedPiece = board[toRow]?.[toCol] ?? null
+          const wasCapture =
+            capturedPiece && capturedPiece.player !== currentPlayer
+
+          if (nextMovingPiece.type === 'pawn') {
+            const direction =
+              nextMovingPiece.direction ??
+              (nextMovingPiece.player === 'white' ? -1 : 1)
+            const edgeRow = direction === -1 ? 0 : BOARD_SIZE - 1
+            if (toRow === edgeRow) {
+              nextMovingPiece.direction = -direction
+            } else {
+              nextMovingPiece.direction = direction
+            }
+          }
+
+          if (nextMovingPiece.type === 'bishop') {
+            const deltaRow = toRow - fromRow
+            const deltaCol = toCol - fromCol
+            const isOrthogonal = deltaRow === 0 || deltaCol === 0
+            if (isOrthogonal) {
+              nextMovingPiece.hasUsedOrthogonal = true
+            }
+          }
+
+          const nextBoard = board.map((boardRow) => boardRow.slice())
+          nextBoard[fromRow][fromCol] = null
+          nextBoard[toRow][toCol] = nextMovingPiece
+          applyCapture(capturedPiece)
+          recordMove({
+            player: aiPlayer,
+            type: wasCapture ? 'capture' : 'move',
+            piece: nextMovingPiece.type,
+            from: { row: fromRow, col: fromCol },
+            to: { row: toRow, col: toCol },
+            captured: wasCapture ? capturedPiece.type : null,
+          })
+          playSound(wasCapture ? 'capture' : 'move', isMuted)
+          finalizeTurn(nextBoard, wasCapture)
+          if (isDev) {
+            console.log('[AI] move applied', { fromRow, fromCol, toRow, toCol })
+          }
+        }
+      } catch (error) {
+        if (isDev) {
+          console.error('[AI] turn error', error)
+        }
       }
     }, 600)
 
@@ -353,7 +705,11 @@ function App() {
     isDraw,
     phase,
     remainingPieces,
+    difficulty,
     winner,
+    isMuted,
+    forcedBlockSquare,
+    aiPlayer,
   ])
 
   if (!gameStarted) {
@@ -364,11 +720,7 @@ function App() {
     <div className="app" data-game-mode={gameMode}>
       <header className="app__header">
         <div>
-          <p className="eyebrow">Tic-Tac-Toe Chess</p>
-          <h1 className="title">4x4 Tactical Placement</h1>
-          <p className="subtitle">
-            Place your pieces on the grid and aim for four in a row.
-          </p>
+          <h1 className="title">Tic-Tac-Toe Chess</h1>
         </div>
         <div className="header-actions">
           <div className="turn-banner">
@@ -377,6 +729,39 @@ function App() {
               {formatName(currentPlayer)}
             </span>
           </div>
+          <button
+            type="button"
+            className="reset-button"
+            style={{
+              background: 'transparent',
+              borderColor: 'var(--panel-border)',
+              color: 'var(--text-muted)',
+              boxShadow: 'none',
+            }}
+            onClick={() => setShowTutorial(true)}
+          >
+            How to Play
+          </button>
+          <button
+            type="button"
+            className="reset-button reset-button--sound"
+            onClick={() => setIsMuted((prev) => !prev)}
+            aria-pressed={isMuted}
+            aria-label={isMuted ? 'Unmute sound effects' : 'Mute sound effects'}
+            title={isMuted ? 'Unmute sound effects' : 'Mute sound effects'}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
+          {gameMode === 'training' ? (
+            <button
+              type="button"
+              className="reset-button reset-button--undo"
+              onClick={handleUndo}
+              disabled={history.length === 0}
+            >
+              ↩ Undo
+            </button>
+          ) : null}
           <button type="button" className="reset-button" onClick={resetGame}>
             New Game
           </button>
@@ -389,20 +774,44 @@ function App() {
           canPlace={canPlace}
           selectedSquare={selectedMovePiece}
           validMoves={validMoves}
+          winningSquares={winningSquares}
+          forcedBlockSquare={forcedBlockSquare}
         />
-        <GameInfo
-          currentPlayer={currentPlayer}
-          phase={phase}
-          remainingPieces={remainingPieces}
-          capturedPieces={capturedPieces}
-          piecesPlaced={piecesPlaced}
-          selectedPiece={selectedPiece}
-          onSelectPiece={handleSelectPiece}
+        <EndGameModal
+          isOpen={showEndGame}
           winner={winner}
           isDraw={isDraw}
-          totalPieces={INITIAL_PIECES.length}
+          drawReason={drawReason}
+          onPlayAgain={resetGame}
+          onShowTutorial={handleEndGameHowToPlay}
         />
+        <div className="sidebar">
+          {gameMode === 'training' ? (
+            <div className="training-badge">Training Mode</div>
+          ) : null}
+          <GameInfo
+            currentPlayer={currentPlayer}
+            phase={phase}
+            remainingPieces={remainingPieces}
+            capturedPieces={capturedPieces}
+            piecesPlaced={piecesPlaced}
+            selectedPiece={selectedPiece}
+            onSelectPiece={handleSelectPiece}
+            winner={winner}
+            isDraw={isDraw}
+            drawReason={drawReason}
+            moveHistory={moveHistory}
+            setMoveHistory={setMoveHistory}
+            infoMessage={infoMessage}
+            totalPieces={INITIAL_PIECES.length}
+            forcedBlockSquare={forcedBlockSquare}
+          />
+        </div>
       </main>
+      <Tutorial
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+      />
     </div>
   )
 }

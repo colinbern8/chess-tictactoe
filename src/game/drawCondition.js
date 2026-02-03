@@ -1,24 +1,20 @@
-import { getValidMoves } from './pieceMovement'
-import { checkWinner } from './winCondition'
+export const checkDraw = (boardHistory, moveCount, lastCaptureMove) => {
+  void lastCaptureMove
 
-export const checkDraw = (board, currentPlayer, remainingPieces) => {
-  if (!board || !board.length) return false
-  if (checkWinner(board)) return false
-
-  const remainingForPlayer = Array.isArray(remainingPieces)
-    ? remainingPieces
-    : remainingPieces?.[currentPlayer] ?? []
-
-  if (remainingForPlayer.length > 0) return false
-
-  for (let row = 0; row < board.length; row += 1) {
-    for (let col = 0; col < board[row].length; col += 1) {
-      const piece = board[row][col]
-      if (!piece || piece.player !== currentPlayer) continue
-      const moves = getValidMoves(board, row, col, piece)
-      if (moves.length) return false
+  if (Array.isArray(boardHistory) && boardHistory.length) {
+    const counts = new Map()
+    for (const snapshot of boardHistory) {
+      const nextCount = (counts.get(snapshot) ?? 0) + 1
+      if (nextCount >= 3) {
+        return 'threefold'
+      }
+      counts.set(snapshot, nextCount)
     }
   }
 
-  return true
+  if (typeof moveCount === 'number' && moveCount >= 40) {
+    return '40move'
+  }
+
+  return null
 }

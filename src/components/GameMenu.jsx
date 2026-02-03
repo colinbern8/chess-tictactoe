@@ -4,10 +4,21 @@ import './GameMenu.css'
 function GameMenu({ onStart }) {
   const [mode, setMode] = useState('2player')
   const [playerColor, setPlayerColor] = useState('white')
+  const [difficulty, setDifficulty] = useState('medium')
+  const isTrainingMode = mode === 'training'
+  const isAiMode = mode === 'ai' || mode === 'training'
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    onStart({ mode, playerColor })
+    if (mode === 'ai') {
+      onStart({ mode: 'ai', playerColor, difficulty })
+      return
+    }
+    if (mode === 'training') {
+      onStart({ mode: 'training', difficulty: 'easy' })
+      return
+    }
+    onStart({ mode })
   }
 
   return (
@@ -44,10 +55,25 @@ function GameMenu({ onStart }) {
                 />
                 <span>vs AI</span>
               </label>
+              <label className="game-menu__option">
+                <input
+                  type="radio"
+                  name="game-mode"
+                  value="training"
+                  checked={mode === 'training'}
+                  onChange={() => setMode('training')}
+                />
+                <span>Training Mode</span>
+              </label>
             </div>
+            {isTrainingMode ? (
+              <p className="game-menu__note">
+                Play against Easy AI with the ability to undo moves.
+              </p>
+            ) : null}
           </div>
 
-          {mode === 'ai' && (
+          {isAiMode && (
             <div className="game-menu__section">
               <h2 className="game-menu__section-title">Player color</h2>
               <div className="game-menu__options">
@@ -71,6 +97,40 @@ function GameMenu({ onStart }) {
                   />
                   <span>Play as Black</span>
                 </label>
+              </div>
+            </div>
+          )}
+          {mode === 'ai' && (
+            <div className="game-menu__section">
+              <h2 className="game-menu__section-title">Difficulty</h2>
+              <div className="difficulty-options">
+                <button
+                  type="button"
+                  className={`difficulty-btn difficulty-btn--easy${
+                    difficulty === 'easy' ? ' difficulty-btn--selected' : ''
+                  }`}
+                  onClick={() => setDifficulty('easy')}
+                >
+                  Easy
+                </button>
+                <button
+                  type="button"
+                  className={`difficulty-btn difficulty-btn--medium${
+                    difficulty === 'medium' ? ' difficulty-btn--selected' : ''
+                  }`}
+                  onClick={() => setDifficulty('medium')}
+                >
+                  Medium
+                </button>
+                <button
+                  type="button"
+                  className={`difficulty-btn difficulty-btn--hard${
+                    difficulty === 'hard' ? ' difficulty-btn--selected' : ''
+                  }`}
+                  onClick={() => setDifficulty('hard')}
+                >
+                  Hard
+                </button>
               </div>
             </div>
           )}
