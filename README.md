@@ -50,7 +50,7 @@ Once all pieces are placed, players take turns either:
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/chess-tictactoe.git
+git clone https://github.com/colinbern8/chess-tictactoe.git
 
 # Navigate to project directory
 cd chess-tictactoe
@@ -194,9 +194,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👤 Author
 
-**Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- Website: [yourwebsite.com](https://yourwebsite.com)
+- GitHub: [@colinbern8](https://github.com/colinbern8)
 
 ---
 
